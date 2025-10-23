@@ -1,0 +1,15 @@
+# smithery.yaml
+# Smithery.ai 에이전트 배포를 위한 설정 파일
+runtime: "python"
+# 1. 에이전트 기본 정보
+# name: smithery.ai 대시보드에 표시될 에이전트의 이름입니다.
+# description: 에이전트에 대한 간략한 설명입니다.
+name: "SSAFY BoB 서버"
+description: "SSAFY 서울 캠퍼스의 식단 정보를 제공하는 챗봇 에이전트입니다."
+
+# 2. MCP 서버 설정
+# mcp_server: 에이전트의 핵심 로직이 담긴 MCP 서버의 실행 방법을 정의합니다.
+mcp_server:
+  # main: 서버를 시작하는 진입점(entrypoint) 파일 경로입니다.
+  # 프로젝트의 루트 디렉토리 기준 상대 경로를 사용합니다.
+  main: bob_server/server.py

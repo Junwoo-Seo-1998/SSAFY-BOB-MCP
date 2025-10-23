@@ -1,0 +1,27 @@
+[build-system]
+requires = ["uv_build>=0.8.15,<0.9.0"]
+build-backend = "uv_build"
+
+[project]
+name = "bob_server"
+version = "0.1.0"
+description = "SSAFY 서울 캠퍼스의 식단 정보를 제공하는 챗봇 에이전트입니다."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "anthropic>=0.71.0",
+    "fastmcp>=2.12.5",
+    "openai>=2.5.0",
+    "python-dotenv>=1.1.1",
+    "smithery>=0.4.2",
+    "requests",
+    "beautifulsoup4"
+]
+
+[project.scripts]
+dev = "smithery.cli.dev:main"
+playground = "smithery.cli.playground:main"
+# Points to your server function
+[tool.smithery] 
+server = "bob_server.server:app"
+
