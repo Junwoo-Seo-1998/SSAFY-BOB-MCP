@@ -15,7 +15,7 @@ dependencies = [
     "python-dotenv>=1.1.1",
     "smithery>=0.4.2",
     "requests",
-    "beautifulsoup4"
+    "beautifulsoup4",
 ]
 
 [project.scripts]
