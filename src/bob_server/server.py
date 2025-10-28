@@ -12,8 +12,9 @@ import requests  # HTTP 요청을 위한 라이브러리
 from dotenv import load_dotenv  # .env 파일 로드를 위해 추가
 
 # --- 설정 및 환경 변수 로드 ---
-load_dotenv()  # .env 파일에서 환경 변수를 로드
-DATA_SOURCE_URL = os.environ.get("DATA_SOURCE_URL")
+#load_dotenv()  # .env 파일에서 환경 변수를 로드
+#DATA_SOURCE_URL = os.environ.get("DATA_SOURCE_URL")
+DATA_SOURCE_URL="https://soonga00.github.io/ssafy-meal-data/meals.json"
 
 # --- 유틸리티 함수 (URL에서 직접 가져오도록 수정됨) ---
 def fetch_data_from_url() -> dict:
