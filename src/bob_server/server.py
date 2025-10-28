@@ -1,4 +1,5 @@
 import os
+# UTF-8 인코딩을 강제 설정합니다. (Windows 환경 호환성)
 os.environ['PYTHONIOENCODING'] = 'utf-8'
 import sys
 import json
@@ -7,23 +8,38 @@ from mcp.server.fastmcp import FastMCP, Context
 from smithery.decorators import smithery
 from pydantic import BaseModel, Field
 from typing import Optional
+import requests  # HTTP 요청을 위한 라이브러리
+from dotenv import load_dotenv  # .env 파일 로드를 위해 추가
 
-# --- 설정 및 로컬 파일 경로 ---
-DATA_FILE = "data/meals.json"
+# --- 설정 및 환경 변수 로드 ---
+load_dotenv()  # .env 파일에서 환경 변수를 로드
+DATA_SOURCE_URL = os.environ.get("DATA_SOURCE_URL")
 
-# --- 유틸리티 함수 ---
-def load_local_data() -> dict:
-    """로컬에 캐시된 JSON 파일을 로드하여 딕셔너리로 반환합니다."""
+# --- 유틸리티 함수 (URL에서 직접 가져오도록 수정됨) ---
+def fetch_data_from_url() -> dict:
+    """외부 URL에서 실시간으로 JSON 데이터를 가져와 딕셔너리로 반환합니다."""
+    
+    # .env 파일에 URL이 설정되어 있는지 확인
+    if not DATA_SOURCE_URL:
+        sys.stderr.write("ERROR: DATA_SOURCE_URL environment variable is not set in .env file.\n")
+        return {"error": "Server configuration error: DATA_SOURCE_URL not set."}
+
     try:
-        if not os.path.exists(DATA_FILE):
-            sys.stderr.write(f"ERROR: Data file not found at {DATA_FILE}. Did you run data_fetcher.py?\n")
-            return {"error": "Local data file not found."}
-
-        with open(DATA_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception as e:
-        sys.stderr.write(f"ERROR: Failed to load or parse JSON data: {e}\n")
-        return {"error": f"Failed to load JSON data: {e}"}
+        # 1. URL에서 데이터 가져오기
+        response = requests.get(DATA_SOURCE_URL)
+        response.raise_for_status()  # HTTP 오류 (4xx, 5xx) 발생 시 예외 처리
+        
+        # 2. JSON 파싱
+        data = response.json()
+        sys.stderr.write(f"DEBUG: Data successfully fetched from {DATA_SOURCE_URL}\n")
+        return data
+        
+    except requests.exceptions.RequestException as e:
+        sys.stderr.write(f"ERROR: Failed to fetch data from URL: {e}\n")
+        return {"error": f"Failed to fetch data from URL: {e}"}
+    except json.JSONDecodeError:
+        sys.stderr.write("ERROR: Failed to parse JSON response from URL.\n")
+        return {"error": "Failed to parse JSON response."}
 
 # --- 세션 설정 스키마 ---
 class ConfigSchema(BaseModel):
@@ -41,10 +57,10 @@ def app():
     """Create and return a FastMCP server instance with session config."""
     mcp = FastMCP("SSAFYMealMenuService")
 
-    @mcp.resource("ssafy:cached_meal_data")
-    def get_local_cached_meal_data() -> str:
-        """로컬에 캐시된 JSON 파일의 전체 내용을 LLM에게 컨텍스트로 제공합니다."""
-        data = load_local_data()
+    @mcp.resource("ssafy:live_meal_data") # 로컬 캐시가 아닌 실시간 데이터를 반영하도록 이름 변경
+    def get_live_meal_data() -> str:
+        """(실시간) URL에서 JSON 파일의 전체 내용을 LLM에게 컨텍스트로 제공합니다."""
+        data = fetch_data_from_url() # 실시간 URL 호출로 변경
         return json.dumps(data, ensure_ascii=False, indent=2)
 
     @mcp.tool()
@@ -52,7 +68,7 @@ def app():
         """
         지정된 날짜의 식단 메뉴를 가져옵니다.
         """
-        data = load_local_data()
+        data = fetch_data_from_url() # 실시간 URL 호출로 변경
         
         if "error" in data:
             return data["error"]
@@ -67,18 +83,29 @@ def app():
         daily_data = data.get(date_str)
         if not daily_data:
             return f"Error: 해당 날짜({date_str})의 식단 데이터가 없습니다."
-
+        
+        # Pydantic 모델에서 floor 값을 가져옴
         target_floor = args.floor
 
         meals_by_floor = {}
+        
+        # daily_data가 리스트인지 확인 (JSON 구조에 따라)
+        if not isinstance(daily_data, list):
+             sys.stderr.write(f"ERROR: Expected list for date {date_str}, but got {type(daily_data)}.\n")
+             return f"Error: 데이터 구조 오류. {date_str}의 데이터가 리스트 형태가 아닙니다."
+        
         for meal in daily_data:
             meal_floor = meal.get("floor")
             
-            if target_floor and target_floor.upper() != meal_floor.upper():
+            # target_floor가 지정되었고, 현재 식단의 층과 다르면 건너뜀
+            if target_floor and meal_floor and (target_floor.upper() != meal_floor.upper()):
                 continue
 
             if meal_floor not in meals_by_floor:
                 meals_by_floor[meal_floor] = []
+            
+            # 줄바꿈 문자를 쉼표+공백으로 변경하여 가독성 확보
+            meal['name'] = meal.get('name', 'N/A').replace('\n', ', ')
             meals_by_floor[meal_floor].append(meal)
 
         if not meals_by_floor:
@@ -92,7 +119,7 @@ def app():
             formatted_output += f"📍 {f}\n"
             for meal in meals:
                 meal_type = meal.get('type', 'N/A')
-                meal_name = meal.get('name', 'N/A').replace(',', ', ')
+                meal_name = meal.get('name', 'N/A') # 이미 위에서 \n 처리됨
                 formatted_output += f"  - {meal_type}: {meal_name}\n"
             formatted_output += "-" * 20 + "\n"
 
@@ -100,3 +127,4 @@ def app():
         return formatted_output
         
     return mcp
+
