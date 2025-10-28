@@ -58,12 +58,6 @@ def app():
     """Create and return a FastMCP server instance with session config."""
     mcp = FastMCP("SSAFYMealMenuService")
 
-    @mcp.resource("ssafy:live_meal_data") # 로컬 캐시가 아닌 실시간 데이터를 반영하도록 이름 변경
-    def get_live_meal_data() -> str:
-        """(실시간) URL에서 JSON 파일의 전체 내용을 LLM에게 컨텍스트로 제공합니다."""
-        data = fetch_data_from_url() # 실시간 URL 호출로 변경
-        return json.dumps(data, ensure_ascii=False, indent=2)
-
     # --- [수정된 부분] ---
     @mcp.tool(
         name="get_meal_menu",
